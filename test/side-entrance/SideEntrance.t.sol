@@ -4,6 +4,7 @@ pragma solidity =0.8.25;
 
 import {Test, console} from "forge-std/Test.sol";
 import {SideEntranceLenderPool} from "../../src/side-entrance/SideEntranceLenderPool.sol";
+import {SideEntranceAttacker} from "../../src/side-entrance/SideEntranceAttacker.sol";
 
 contract SideEntranceChallenge is Test {
     address deployer = makeAddr("deployer");
@@ -45,7 +46,11 @@ contract SideEntranceChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_sideEntrance() public checkSolvedByPlayer {
+        // 部署攻击合约
+        SideEntranceAttacker attacker = new SideEntranceAttacker(pool);
         
+        // 执行攻击，直接将ETH转移到recovery地址
+        attacker.attack(recovery);
     }
 
     /**
