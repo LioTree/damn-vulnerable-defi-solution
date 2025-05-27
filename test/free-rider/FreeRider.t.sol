@@ -11,6 +11,7 @@ import {DamnValuableToken} from "../../src/DamnValuableToken.sol";
 import {FreeRiderNFTMarketplace} from "../../src/free-rider/FreeRiderNFTMarketplace.sol";
 import {FreeRiderRecoveryManager} from "../../src/free-rider/FreeRiderRecoveryManager.sol";
 import {DamnValuableNFT} from "../../src/DamnValuableNFT.sol";
+import {Attacker} from "./Attacker.sol";
 
 contract FreeRiderChallenge is Test {
     address deployer = makeAddr("deployer");
@@ -123,7 +124,39 @@ contract FreeRiderChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_freeRider() public checkSolvedByPlayer {
-        
+        // Log initial player balance
+        console.log("Player ETH balance before attack:", player.balance);
+
+        // Deploy the attacker contract
+        Attacker attacker = new Attacker(weth, uniswapPair, marketplace, nft, recoveryManager);
+        console.log("Attacker contract deployed at:", address(attacker));
+
+        // Log NFT ownership before attack (owned by deployer)
+        console.log("--- NFT Ownership Before Attack ---");
+        for (uint256 i = 0; i < AMOUNT_OF_NFTS; i++) {
+            console.log("Owner of NFT ID %s: %s", i, nft.ownerOf(i));
+        }
+
+        // Log marketplace balance before attack
+        console.log("Marketplace ETH balance before attack:", address(marketplace).balance);
+
+        // Execute the attack
+        attacker.attack();
+
+        // Log NFT ownership after attack (should be owned by recoveryManagerOwner via recoveryManager)
+        console.log("--- NFT Ownership After Attack (expected: recoveryManagerOwner) ---");
+        for (uint256 i = 0; i < AMOUNT_OF_NFTS; i++) {
+            // Note: _isSolved will do the actual transfer to recoveryManagerOwner
+            // Here we check who owns it *before* _isSolved is called. It should be recoveryManager contract.
+            console.log("Owner of NFT ID %s: %s", i, nft.ownerOf(i));
+        }
+
+        // Log final player balance
+        console.log("Player ETH balance after attack:", player.balance);
+        // Log marketplace balance after attack
+        console.log("Marketplace ETH balance after attack:", address(marketplace).balance);
+        // Log recovery manager balance after attack (should be 0 if bounty paid)
+        console.log("RecoveryManager ETH balance after attack:", address(recoveryManager).balance);
     }
 
     /**
