@@ -5,8 +5,10 @@ pragma solidity =0.8.25;
 import {Test, console} from "forge-std/Test.sol";
 import {Safe} from "@safe-global/safe-smart-account/contracts/Safe.sol";
 import {SafeProxyFactory} from "@safe-global/safe-smart-account/contracts/proxies/SafeProxyFactory.sol";
+import {SafeProxy} from "safe-smart-account/contracts/proxies/SafeProxy.sol";
 import {DamnValuableToken} from "../../src/DamnValuableToken.sol";
 import {WalletRegistry} from "../../src/backdoor/WalletRegistry.sol";
+import {AttackContract} from "./AttackContract.sol";
 
 contract BackdoorChallenge is Test {
     address deployer = makeAddr("deployer");
@@ -70,7 +72,17 @@ contract BackdoorChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_backdoor() public checkSolvedByPlayer {
-        
+        // Deploy attack contract which will handle everything in a single transaction
+        AttackContract attackContract = new AttackContract(
+            address(walletFactory),
+            address(singletonCopy),
+            address(walletRegistry),
+            address(token),
+            recovery
+        );
+
+        // Execute the attack in a single transaction
+        attackContract.attack(users);
     }
 
     /**
