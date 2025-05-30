@@ -4,6 +4,7 @@ pragma solidity =0.8.25;
 
 import {TransparentProxy} from "./TransparentProxy.sol";
 import {AuthorizerUpgradeable} from "./AuthorizerUpgradeable.sol";
+import "forge-std/console.sol";
 
 contract AuthorizerFactory {
     function deployWithProxy(address[] memory wards, address[] memory aims, address upgrader)

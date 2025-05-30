@@ -2,6 +2,8 @@
 // Damn Vulnerable DeFi v4 (https://damnvulnerabledefi.xyz)
 pragma solidity =0.8.25;
 
+import "forge-std/console.sol";
+
 contract AuthorizerUpgradeable {
     uint256 public needsInit = 1;
     mapping(address => mapping(address => uint256)) private wards;

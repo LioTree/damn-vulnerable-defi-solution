@@ -24,6 +24,7 @@ import {
     SAFE_SINGLETON_FACTORY_ADDRESS,
     SAFE_SINGLETON_FACTORY_CODE
 } from "./SafeSingletonFactory.sol";
+import {Exploit} from "./Exploit.sol";
 
 contract WalletMiningChallenge is Test {
     address deployer = makeAddr("deployer");
@@ -94,11 +95,14 @@ contract WalletMiningChallenge is Test {
         // Send big bag full of DVT tokens to the deposit address
         token.transfer(USER_DEPOSIT_ADDRESS, DEPOSIT_TOKEN_AMOUNT);
 
+        // SAFE_SINGLETON_FACTORY既生产SafeProxyFactory，也生产Safe。两者都是单例的
         // Call singleton factory to deploy copy and factory contracts
+        // 生产Safe
         (bool success, bytes memory returndata) =
             address(SAFE_SINGLETON_FACTORY_ADDRESS).call(bytes.concat(bytes32(""), type(Safe).creationCode));
         singletonCopy = Safe(payable(address(uint160(bytes20(returndata)))));
 
+        // 生产SafeProxyFactory
         (success, returndata) =
             address(SAFE_SINGLETON_FACTORY_ADDRESS).call(bytes.concat(bytes32(""), type(SafeProxyFactory).creationCode));
         proxyFactory = SafeProxyFactory(address(uint160(bytes20(returndata))));
@@ -157,7 +161,20 @@ contract WalletMiningChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_walletMining() public checkSolvedByPlayer {
+        // 部署Exploit合约
+        Exploit exploit = new Exploit(
+            address(proxyFactory),
+            address(singletonCopy),
+            address(walletDeployer),
+            address(token),
+            address(authorizer),
+            user,
+            ward,
+            userPrivateKey
+        );
         
+        // 直接执行攻击，不指定特定身份
+        exploit.exploit();
     }
 
     /**
