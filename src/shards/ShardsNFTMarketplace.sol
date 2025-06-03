@@ -10,6 +10,7 @@ import {ShardsFeeVault} from "./ShardsFeeVault.sol";
 import {DamnValuableToken} from "../DamnValuableToken.sol";
 import {DamnValuableNFT} from "../DamnValuableNFT.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
+import "forge-std/console.sol";
 
 /**
  * @notice NFT marketplace where sellers offer NFTs, and buyers can collectively acquire pieces of them.
@@ -90,6 +91,7 @@ contract ShardsNFTMarketplace is IShardsNFTMarketplace, IERC721Receiver, ERC1155
 
     /**
      * Caller can redeem and burn all shards to claim the associated NFT
+     * 在得到所有的碎片后得到整个nft
      * @param nftId ID of the NFT to claim
      */
     function redeem(uint256 nftId) external {
@@ -99,7 +101,7 @@ contract ShardsNFTMarketplace is IShardsNFTMarketplace, IERC721Receiver, ERC1155
         if (offer.isOpen) revert StillOpen();
 
         delete offers[offerId];
-        _burn(msg.sender, nftId, offer.totalShards);
+        _burn(msg.sender, nftId, offer.totalShards); // 这里检查了是否拥有所有的碎片
 
         nft.safeTransferFrom(address(this), msg.sender, nftId, "");
     }
@@ -132,6 +134,10 @@ contract ShardsNFTMarketplace is IShardsNFTMarketplace, IERC721Receiver, ERC1155
                 cancelled: false
             })
         );
+        // console.log("want: ", want);
+        // console.log("_toDVT(offer.price, _currentRate): ", _toDVT(offer.price, _currentRate));
+        // console.log("offer.totalShards: ", offer.totalShards);
+        console.log("want.mulDivDown(_toDVT(offer.price, _currentRate), offer.totalShards):", want.mulDivDown(_toDVT(offer.price, _currentRate), offer.totalShards));
         paymentToken.transferFrom(
             msg.sender, address(this), want.mulDivDown(_toDVT(offer.price, _currentRate), offer.totalShards)
         );
@@ -160,6 +166,9 @@ contract ShardsNFTMarketplace is IShardsNFTMarketplace, IERC721Receiver, ERC1155
 
         emit Cancelled(offerId, purchaseIndex);
 
+        // console.log("purchase.shards: ", purchase.shards);
+        // console.log("purchase.rate: ", purchase.rate);
+        // console.log("purchase.shards.mulDivUp(purchase.rate, 1e6):", purchase.shards.mulDivUp(purchase.rate, 1e6));
         paymentToken.transfer(buyer, purchase.shards.mulDivUp(purchase.rate, 1e6));
     }
 
